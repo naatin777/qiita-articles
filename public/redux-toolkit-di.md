@@ -17,7 +17,7 @@ Redux Toolkitで`createAsyncThunk`を使って非同期処理を書く際にThun
 この記事では、`extraArgument`と`createAsyncThunk.withTypes`を用いて、型安全なDIを実現する方法について紹介します。
 
 :::note info
-この先はほぼサンプルコードを貼り付けてるだけなので忙しい人は[公式ドキュメント](https://redux-toolkit.js.org/usage/usage-with-typescript#defining-a-pre-typed-createasyncthunk)を見てください。`createAsyncThunk.withTypes`について紹介したかっただけです。
+この先はほぼサンプルコードを貼り付けてるだけなので忙しい人は[公式ドキュメント](https://redux-toolkit.js.org/usage/usage-with-typescript#defining-a-pre-typed-createasyncthunk)を見てください。`createAsyncThunk.withTypes`について紹介したかっただけです。Redux Toolkit v2.0以上を対象としています。
 :::
 
 :::note info
@@ -73,19 +73,22 @@ const extraArgument: AppExtraArgument = {
   api: apiService,
 };
 
-export const store = configureStore({
-  reducer: {
-    user: userReducer,
-  },
-  middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware({
-      thunk: {
-        // ここにオリジナルを差し込む
-        extraArgument,
-      },
-    }),
-});
+export const setupStore = (extra: AppExtraArgument) => {
+  return configureStore({
+    reducer: {
+      user: userReducer,
+    },
+    middleware: (getDefaultMiddleware) => 
+      getDefaultMiddleware({
+        thunk: {
+          // ここにオリジナルを差し込む
+          extraArgument: extra,
+        },
+      }),
+  });
+};
 
+export const store = setupStore(extraArgument);
 export type AppDispatch = typeof store.dispatch;
 export type RootState = ReturnType<typeof store.getState>;
 ```
@@ -178,7 +181,7 @@ DIで最もその真価を発揮するのはテストです。
 `jest.mock`を用いる必要はなく、モック化したAPIオブジェクトを`extraArgument`に差し込むだけなのでテストコードが読みやすくなります。
 
 ```ts:src/features/user/userSlice.test.ts
-import { configureStore } from "@reduxjs/toolkit";
+import { setupStore } from "../../app/store";
 import userReducer, { fetchUserById } from "./userSlice";
 import { ApiService, User } from "../../services/api";
 
@@ -190,19 +193,8 @@ describe("userSlice with DI", () => {
       fetchUser: jest.fn().mockResolvedValue(mockUser),
     };
 
-    const store = configureStore({
-      reducer: {
-        user: userReducer,
-      },
-      middleware: (getDefaultMiddleware) =>
-        getDefaultMiddleware({
-          thunk: {
-            // ここで作成したモックを差し込むことができる
-            extraArgument: { api: mockApi },
-          },
-        }),
-    });
-
+    const store = setupStore({ api: mockApi })
+    
     await store.dispatch(fetchUserById("test-id"));
 
     const state = store.getState().user;
@@ -216,13 +208,7 @@ describe("userSlice with DI", () => {
       fetchUser: jest.fn().mockRejectedValue(new Error("API Error")),
     };
 
-    const store = configureStore({
-      reducer: { user: userReducer },
-      middleware: (getDefaultMiddleware) =>
-        getDefaultMiddleware({
-          thunk: { extraArgument: { api: mockApi } },
-        }),
-    });
+    const store = setupStore({ api: mockApi })
 
     await store.dispatch(fetchUserById("error-id"));
 
