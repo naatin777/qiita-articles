@@ -10,29 +10,37 @@ organization_url_name: null
 slide: false
 ignorePublish: false
 ---
+
 # はじめに
 
-Redux Toolkitで`createAsyncThunk`を使って非同期処理を書く際にThunk内で直接axiosやfetchを用いてハードコードしていませんか?
-ハードコードすると、テストする際に実際の通信が走って時間がかかってしまったり、`jest.mock`でモジュール全体をモックする必要があり、コードが複雑になってしまいます。
-この記事では、`extraArgument`と`createAsyncThunk.withTypes`を用いて、型安全なDIを実現する方法について紹介します。
+Redux Toolkitで`createAsyncThunk`を使って非同期処理を書くとき、Thunkの中で直接`axios`や`fetch`を呼び出していませんか？
+
+Thunk内に通信処理を直接書くと、テスト時に実際の通信が走ってしまったり、`jest.mock`でモジュール全体をモックする必要があったりして、テストコードが複雑になりがちです。
+
+この記事では、Redux Toolkitの`thunk.extraArgument`と`createAsyncThunk.withTypes`を使って、型安全に依存を注入する方法を紹介します。
 
 :::note info
-この先はほぼサンプルコードを貼り付けてるだけなので忙しい人は[公式ドキュメント](https://redux-toolkit.js.org/usage/usage-with-typescript#defining-a-pre-typed-createasyncthunk)を見てください。`createAsyncThunk.withTypes`について紹介したかっただけです。Redux Toolkit v2.0以上を対象としています。
+この記事は、Redux Toolkit v2.0以上を対象にしています。  
+`createAsyncThunk.withTypes`の使い方を紹介したい記事なので、詳しく知りたい方は公式ドキュメントの「Defining a Pre-Typed createAsyncThunk」も確認してみてください。
 :::
 
 :::note info
-よほどの理由がない限り[MSW](https://mswjs.io/)と[RTK Query](https://redux-toolkit.js.org/rtk-query/overview)を用いることをお勧めします。FirebaseやStripeを用いている場合はRTK Query周りがめんどくさいので今回の方法が良いと思います。また、React NativeとWebでロジックを共有する場合にも良いと思います。
+通常のAPI通信では、MSWやRTK Queryを使う方が適している場面も多いです。  
+一方で、FirebaseやStripeのような外部SDKを使う場合や、React NativeとWebでロジックを共有したい場合は、今回のように依存を注入する設計が扱いやすいことがあります。
 :::
 
 :::note info
-`jest.mock`の方が本番コードはシンプルになるというメリットがあるので自分に合ってる方を選択することをお勧めします(私はキャストだらけになるのが嫌いなので今回の方法がいいと思ってます)。
+`jest.mock`を使う方が本番コードをシンプルに保てる場合もあります。  
+ただし、モック対象が増えると型キャストが多くなりがちなので、型安全にテストを書きたい場合は今回の方法も選択肢になります。
 :::
 
 # サンプルコード
 
-## APIのインターフェースを定義
+## APIのインターフェースを定義する
 
-DIではインターフェースに依存させることが重要なのでAPI通信をするサービスの実体とそのインターフェースを定義します。
+まずは、API通信を行うサービスのインターフェースを定義します。
+
+Thunkが具体的な実装ではなくインターフェースに依存するようにしておくことで、本番用の実装とテスト用のモックを差し替えやすくなります。
 
 ```ts:src/services/api.ts
 export interface User {
@@ -47,7 +55,7 @@ export interface ApiService {
 export const apiService: ApiService = {
   fetchUser: async (id) => {
     return new Promise((resolve) => {
-      // 実行するたびに1秒なんて待てない
+      // 実行するたびに1秒待つような処理は、テストでは避けたい
       setTimeout(() => {
         resolve({ id, name: `User ${id}` });
       }, 1000);
@@ -58,12 +66,15 @@ export const apiService: ApiService = {
 
 ## Storeに依存を注入する
 
-`configureStore`を呼び出す際に`getDefaultMiddleware`を通じて`thunk.extraArgument`に先ほどの`apiService`を渡します。これがDIコンテナとしての役割を果たします。
+`configureStore`を呼び出すときに、`getDefaultMiddleware`経由で`thunk.extraArgument`を設定します。
+
+ここで渡した値は、`createAsyncThunk`のpayload creator内で`extra`として参照できます。
 
 ```ts:src/app/store.ts
 import { configureStore } from "@reduxjs/toolkit";
-import { apiService, ApiService } from "../services/api";
+import { apiService } from "../services/api";
 import userReducer from "../features/user/userSlice";
+import type { ApiService } from "../services/api";
 
 export interface AppExtraArgument {
   api: ApiService;
@@ -73,39 +84,37 @@ const extraArgument: AppExtraArgument = {
   api: apiService,
 };
 
-export const setupStore = (extra: AppExtraArgument) => {
+export const setupStore = (extra: AppExtraArgument = extraArgument) => {
   return configureStore({
     reducer: {
       user: userReducer,
     },
-    middleware: (getDefaultMiddleware) => 
+    middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
         thunk: {
-          // ここにオリジナルを差し込む
           extraArgument: extra,
         },
       }),
   });
 };
 
-export const store = setupStore(extraArgument);
-export type AppDispatch = typeof store.dispatch;
-export type RootState = ReturnType<typeof store.getState>;
+export const store = setupStore();
+
+export type AppStore = ReturnType<typeof setupStore>;
+export type AppDispatch = AppStore["dispatch"];
+export type RootState = ReturnType<AppStore["getState"]>;
 ```
 
-## 型安全なカスタムThunkの作成
+## 型安全なカスタムThunkを作成する
 
-ここが重要なポイントでこのまま何もせずに`createAsyncThunk`を用いて`extra`経由で`api`を呼び出そうとしても、標準の`createAsyncThunk`は`extra`の型推論のデフォルトが`unknown`になっているため、めんどくさいことになります。
-そのため、ここで`createAsyncThunk.withTypes`を用いて`extra`の型が定義されたオレオレThunk関数を作成します。
+そのまま`createAsyncThunk`を使うと、`extra`の型は自動では分かりません。
 
-```ts:src/app/hooks.ts
+そこで、`createAsyncThunk.withTypes`を使って、アプリ用に型付け済みの`createAsyncThunk`を作成します。
+
+```ts:src/app/asyncThunk.ts
 import { createAsyncThunk } from "@reduxjs/toolkit";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState, AppDispatch, AppExtraArgument } from "./store";
+import type { RootState, AppDispatch, AppExtraArgument } from "./store";
 
-export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
-export const useAppSelector = useSelector.withTypes<RootState>();
-// ここで型安全なcreateAsyncThunkを作る!!!
 export const createAppAsyncThunk = createAsyncThunk.withTypes<{
   state: RootState;
   dispatch: AppDispatch;
@@ -114,15 +123,26 @@ export const createAppAsyncThunk = createAsyncThunk.withTypes<{
 }>();
 ```
 
-## スライスの実装
+React Reduxのhooksも型付けしておきます。
 
-ここで先ほど作成した`createAppAsyncThunk`を用いて非同期処理を書きます。
-ここで`extra`が`AppExtraArgument`型と認識してくれるので型エラーもなく、補完機能もしっかり効きます!
+```ts:src/app/hooks.ts
+import { useDispatch, useSelector } from "react-redux";
+import type { RootState, AppDispatch } from "./store";
+
+export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
+export const useAppSelector = useSelector.withTypes<RootState>();
+```
+
+## スライスを実装する
+
+先ほど作成した`createAppAsyncThunk`を使って非同期処理を書きます。
+
+`extra`が`AppExtraArgument`型として扱われるため、`extra.api.fetchUser`の補完も効きます。
 
 ```ts:src/features/user/userSlice.ts
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { User } from "../../services/api";
-import { createAppAsyncThunk } from "../../app/hooks";
+import { createSlice } from "@reduxjs/toolkit";
+import { createAppAsyncThunk } from "../../app/asyncThunk";
+import type { User } from "../../services/api";
 
 interface UserState {
   data: User | null;
@@ -140,10 +160,9 @@ export const fetchUserById = createAppAsyncThunk(
   "user/fetchById",
   async (userId: string, { extra, rejectWithValue }) => {
     try {
-      // extraがAppExtraArgument型になってる!!!
-      const response = await extra.api.fetchUser(userId);
-      return response;
-    } catch (e) {
+      const user = await extra.api.fetchUser(userId);
+      return user;
+    } catch {
       return rejectWithValue("Failed to fetch user");
     }
   },
@@ -157,17 +176,15 @@ const userSlice = createSlice({
     builder
       .addCase(fetchUserById.pending, (state) => {
         state.loading = "pending";
+        state.error = null;
       })
-      .addCase(
-        fetchUserById.fulfilled,
-        (state, action: PayloadAction<User>) => {
-          state.loading = "succeeded";
-          state.data = action.payload;
-        },
-      )
+      .addCase(fetchUserById.fulfilled, (state, action) => {
+        state.loading = "succeeded";
+        state.data = action.payload;
+      })
       .addCase(fetchUserById.rejected, (state, action) => {
         state.loading = "failed";
-        state.error = action.payload || "unknown error";
+        state.error = action.payload ?? "unknown error";
       });
   },
 });
@@ -175,44 +192,50 @@ const userSlice = createSlice({
 export default userSlice.reducer;
 ```
 
-## テスト
+## テストを書く
 
-DIで最もその真価を発揮するのはテストです。
-`jest.mock`を用いる必要はなく、モック化したAPIオブジェクトを`extraArgument`に差し込むだけなのでテストコードが読みやすくなります。
+DIのメリットが特に分かりやすいのはテストです。
+
+`jest.mock`でモジュール全体をモックしなくても、モック化したAPIオブジェクトを`extraArgument`に差し込むだけでテストできます。
 
 ```ts:src/features/user/userSlice.test.ts
 import { setupStore } from "../../app/store";
-import userReducer, { fetchUserById } from "./userSlice";
-import { ApiService, User } from "../../services/api";
+import { fetchUserById } from "./userSlice";
+import type { ApiService, User } from "../../services/api";
 
 describe("userSlice with DI", () => {
-  it("should fetch user using the injected api service", async () => {
-    // ここでapiServiceの代わりとなるモックを作成する
-    const mockUser: User = { id: "test-id", name: "Mock User" };
+  it("injected api serviceを使ってユーザーを取得できる", async () => {
+    const mockUser: User = {
+      id: "test-id",
+      name: "Mock User",
+    };
+
     const mockApi: ApiService = {
       fetchUser: jest.fn().mockResolvedValue(mockUser),
     };
 
-    const store = setupStore({ api: mockApi })
-    
+    const store = setupStore({ api: mockApi });
+
     await store.dispatch(fetchUserById("test-id"));
 
     const state = store.getState().user;
+
     expect(state.loading).toBe("succeeded");
     expect(state.data).toEqual(mockUser);
     expect(mockApi.fetchUser).toHaveBeenCalledWith("test-id");
   });
 
-  it("should handle API errors", async () => {
+  it("APIエラーを扱える", async () => {
     const mockApi: ApiService = {
       fetchUser: jest.fn().mockRejectedValue(new Error("API Error")),
     };
 
-    const store = setupStore({ api: mockApi })
+    const store = setupStore({ api: mockApi });
 
     await store.dispatch(fetchUserById("error-id"));
 
     const state = store.getState().user;
+
     expect(state.loading).toBe("failed");
     expect(state.error).toBe("Failed to fetch user");
   });
@@ -221,5 +244,8 @@ describe("userSlice with DI", () => {
 
 # おわりに
 
-jestでテストを書いていた時にキャスト地獄でJavaScript化していたので気持ち悪さを感じました。
-この設計パターンを取り入れることで保守性が高まると思うので試してみてください!!!
+`createAsyncThunk`の中で直接APIクライアントを呼び出すと、実装は簡単ですが、テスト時にモックしづらくなることがあります。
+
+`thunk.extraArgument`で依存を外から渡し、`createAsyncThunk.withTypes`で`extra`に型を付けておくと、Thunkの中でも補完が効き、テストでも本番用の実装とモックを簡単に差し替えられます。
+
+`jest.mock`で十分な場合もありますが、型キャストが増えてつらくなってきたら、今回のような設計も選択肢として試してみてください。
