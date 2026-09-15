@@ -3,11 +3,13 @@ title: VSCodeの拡張機能を配布するときはバージョンを見直し�
 tags:
   - VSCode-Extension
 private: false
-updated_at: '2026-05-03T18:40:24+09:00'
+updated_at: '2026-09-16T01:28:10+09:00'
 id: eb58397d8f7c7913cb00
 organization_url_name: null
 slide: false
 ignorePublish: false
+posting_campaign_uuid: null
+agreed_posting_campaign_term: false
 ---
 :::note warn
 この記事は2026年6月時点の情報です。

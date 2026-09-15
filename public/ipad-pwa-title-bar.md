@@ -1,11 +1,11 @@
 ---
 title: iPadでPWAするときに左上の信号機を回避する
 tags:
-  - 'iPad'
-  - 'PWA'
+  - iPad
+  - PWA
 private: false
-updated_at: ''
-id: null
+updated_at: '2026-09-16T01:28:10+09:00'
+id: 0f83cfa40493b68647a4
 organization_url_name: null
 slide: false
 ignorePublish: false
