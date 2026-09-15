@@ -10,41 +10,38 @@ slide: false
 ignorePublish: false
 ---
 :::note warn
-この記事は2026年5月時点の情報です。
+この記事は2026年6月時点の情報です。
 ツールのアップデートにより状況が変わる可能性がありますのでご了承ください🙇
 :::
 
-# 先に結論
+# 何をすれば良いか
 
 `npx yo code`でプロジェクトを作成した後は、`package.json`の以下の2箇所を修正することをおすすめします。
 
 ```diff_jsonc:package.json
   "engines": {
--    "vscode": "^1.108.1"
-+    "vscode": "^1.104.0" // ターゲットとするエディタのバージョンに合わせて調整
+-    "vscode": "^1.126.0"
++    "vscode": "^1.105.0"
   },
   "devDependencies": {
--   "@types/vscode": "^1.108.1",
-+   "@types/vscode": "^1.104.0", // enginesと同じバージョンを指定
+-   "@types/vscode": "^1.126.0",
++   "@types/vscode": "^1.105.0", 
     ...
   }
 ```
 
-WindsurfやCursor、Google Antigravityでは少し古いバージョンのVSCodeをフォークしています。`npx yo code`のデフォルト設定ではその時点の最新のVSCodeを要求するため、互換性エラーになります。
+DevinやCursor、Antigravityでは少し古いバージョンのVSCodeをフォークしています。
+`npx yo code`のデフォルト設定ではその時点の最新のVSCodeを要求するため、互換性エラーになります。
 
 # 発生するエラー
 
-`npx yo code`で生成されたデフォルト設定(最新版)のままpackage化するとVSCodeの場合、以下のようにインストールすることができます。
+`npx yo code`で生成されたデフォルト設定(最新版)のままパッケージ化するとVSCodeの場合、以下のようにインストールすることができます。
+しかし、Cursor(AntigraviityやWindsurfなども同様)の場合、同じようにインストールするとこのようにエラーが発生します。
+エディタのバージョンが1.105.1なのでそれよりも新しいエンジンはインストール出来ないと怒られています。
 
-![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/9701f29d-90c2-46ff-a61e-6a6849a22a48.png)
-
-Google Antigravity(CursorやWindsurfなども同様)の場合、同じようにインストールするとエラーが発生します(エディタのバージョンが1.104.0なので拡張機能が要求するバージョン^1.108.1よりも古いことが原因)。
-
-![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/c96b04ac-cc95-4bec-8b48-8552714e895c.png)
-
-先ほどのコードのようにバージョンをある程度(ターゲットとなるエディタのバージョンまたはそれ以下)まで下げると無事にインストールすることができました!
-
-![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/59238149-9fb0-47dc-997d-deb4329e3d3b.png)
+|VS Code|Cursor|
+|---|---|
+|![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/ae5a4318-9e85-48f9-8460-c339f973ff29.png)|![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/0f444a1c-5959-4889-b2c1-eaa4fcfb7b50.png)|
 
 # 注意点(追記)
 
@@ -52,12 +49,15 @@ Google Antigravity(CursorやWindsurfなども同様)の場合、同じように�
 
 # バージョン確認(追記)
 
-CursorではMacの場合、メニューバーのCursor→About Cursorから以下のように元となっているVSCodeのバージョンを見ることができます。
+Macの場合、メニューバーのXXX→About XXXから以下のように元となっているVSCodeのバージョンを見ることができます。
 
-![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/7900efed-a218-454b-ac7b-8aaae65ab364.png)
+|VS Code|Cursor|Devin|Antigravity|
+|---|---|---|---|
+|![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/8a41743c-78c7-459a-9a48-b3b048696b8d.png)|![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/64aaa3b7-2fa6-4e54-b71f-ca35c24f7139.png)|![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/8a0ffe27-4d62-4e01-9884-fa0f9c8948aa.png)|![image.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/4148597/507962dc-e31c-42e2-905f-f29afadf61d6.png)|
+|1.260.0|1.105.1|1.110.1|1.107.0|
 
 # まとめ
 
 いかがでしたか？
-半年ほど前に自作のVSCodeの拡張機能をVisual Studio MarketplaceやOpen VSXにアップしたのですが、Windsurfでインストールしてみたところバージョンの食い違いでエラーが起きたので急いで修正したという経験からこの記事を書きました。
+前に自作のVSCodeの拡張機能をVisual Studio MarketplaceやOpen VSXにアップしたのですが、Devin(旧Windsurf)でインストールしてみたところバージョンの食い違いでエラーが起きたので急いで修正したという経験からこの記事を書きました。
 VSCodeで開発していると気づきにくい落とし穴ですが、派生エディタを利用する人が増えているので見直した方がいいかもしれません。
