@@ -88,6 +88,8 @@ Adaptive Iconは、**foreground**と**background**の2枚(各108×108dp)に分�
 
 あとはインストールして、ホーム画面でアイコンをドラッグしたり動かしたりします。冒頭のGIFがその録画です。
 
+動作確認環境: Pixel 7 / Pixel Launcher / Android 17
+
 注意点として、
 
 - 視覚効果を出さないLauncherもあります。その場合はずっと静止画です
