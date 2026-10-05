@@ -1,11 +1,11 @@
 ---
-title: Androidのアイコンを揺らしてベロベロさせる方法🤪
+title: "Androidのアイコンを揺らしてベロベロさせる方法\U0001F92A"
 tags:
-  - 'Android'
-  - 'icon'
+  - Android
+  - icon
 private: false
-updated_at: ''
-id: null
+updated_at: '2026-10-05T23:32:31+09:00'
+id: ddc977400c7082d4fafb
 organization_url_name: null
 slide: false
 ignorePublish: false
